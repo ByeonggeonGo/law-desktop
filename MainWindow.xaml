@@ -47,13 +47,9 @@
                 <!-- Settings & Configuration Form -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="OC Key:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
-                    <TextBox x:Name="OcTextBox" Width="120" Height="28" VerticalContentAlignment="Center" Background="#0F172A" Foreground="#F1F5F9" BorderBrush="#475569" Padding="5,0"/>
+                    <TextBox x:Name="OcTextBox" Width="120" Height="28" VerticalContentAlignment="Center" Background="#0F172A" Foreground="#F1F5F9" BorderBrush="#475569" Padding="5,0" Margin="0,0,15,0"/>
                     
-                    <TextBlock Text="Model:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12" Margin="15,0,6,0"/>
-                    <ComboBox x:Name="ModelComboBox" Width="160" Height="28" Background="#0F172A" Foreground="#F1F5F9" BorderBrush="#475569" SelectedIndex="0" Margin="0,0,10,0">
-                        <ComboBoxItem Content="gemini-3.5-flash"/>
-                        <ComboBoxItem Content="gemini-3.5-pro"/>
-                    </ComboBox>
+                    <TextBlock Text="Engine: Antigravity CLI (Default Model)" Foreground="#38BDF8" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,15,0"/>
                     
                     <Button Content="Apply" Width="60" Height="28" Click="ApplySettings_Click" Background="#38BDF8" Foreground="#0F172A" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
                         <Button.Resources>

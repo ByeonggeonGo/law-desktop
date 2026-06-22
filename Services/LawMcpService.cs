@@ -14,7 +14,7 @@ namespace LawDesktop.Services
     {
         private readonly HttpClient _httpClient;
         private string _mcpUrl = "https://korean-law-mcp.fly.dev/mcp";
-        private string _ocKey = "honggildong"; // default demo key
+        private string _ocKey = "0428"; // default data.go.kr free api key
 
         public LawMcpService(string? ocKey = null, string? mcpUrl = null)
         {

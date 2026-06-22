@@ -31,7 +31,7 @@ namespace LawDesktop
             ChatItemsControl.ItemsSource = Messages;
 
             // Set default settings value
-            OcTextBox.Text = "honggildong"; // default demo key
+            OcTextBox.Text = "0428"; // default data.go.kr free api key
             
             // Diagnostics for agy cli on load
             Loaded += MainWindow_Loaded;
@@ -65,13 +65,10 @@ namespace LawDesktop
         private void ApplySettings_Click(object sender, RoutedEventArgs e)
         {
             var ocKey = OcTextBox.Text.Trim();
-            var selectedItem = ModelComboBox.SelectedItem as ComboBoxItem;
-            var modelName = selectedItem?.Content?.ToString() ?? "gemini-3.5-flash";
 
             _mcpService.UpdateConfig(ocKey, "https://korean-law-mcp.fly.dev/mcp");
-            _agyService.UpdateModel(modelName);
 
-            StatusText.Text = $"Settings applied. (Model: {modelName})";
+            StatusText.Text = "Settings applied. (OC Key updated)";
         }
 
         private async void SendButton_Click(object sender, RoutedEventArgs e)

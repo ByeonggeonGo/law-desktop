@@ -8,22 +8,8 @@ namespace LawDesktop.Services
 {
     public class AgyCliService
     {
-        private string _model = "gemini-3.5-flash"; // default model
-
-        public AgyCliService(string? model = null)
+        public AgyCliService()
         {
-            if (!string.IsNullOrEmpty(model))
-            {
-                _model = model;
-            }
-        }
-
-        public void UpdateModel(string model)
-        {
-            if (!string.IsNullOrEmpty(model))
-            {
-                _model = model;
-            }
         }
 
         /// <summary>
@@ -64,7 +50,7 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Execute prompt on local agy cli non-interactively
+        /// Execute prompt on local agy cli non-interactively using the CLI's default model configuration
         /// </summary>
         public async Task<AgyResult> ExecutePromptAsync(string prompt, string? workDir = null)
         {
@@ -73,7 +59,8 @@ namespace LawDesktop.Services
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "agy",
-                    Arguments = $"--dangerously-skip-permissions --model \"{_model}\" --print \"{prompt.Replace("\"", "\\\"")}\"",
+                    // Removed --model flag to use local agy CLI's default configured model
+                    Arguments = $"--dangerously-skip-permissions --print \"{prompt.Replace("\"", "\\\"")}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
