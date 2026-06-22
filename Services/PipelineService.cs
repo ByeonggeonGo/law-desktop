@@ -13,10 +13,18 @@ namespace LawDesktop.Services
         private readonly LawMcpService _mcpService;
         private readonly AgyCliService _agyService;
 
-        // Greeting tokens for simple classification
+        // Legal context search hints to distinguish short lookups
+        private static readonly string[] SearchHints = new[]
+        {
+            "law", "court", "precedent", "sue", "case", "legal", "clause", "article",
+            "법", "판례", "소송", "고소", "조문", "해석", "근거", "부당", "계약"
+        };
+
+        // Greeting tokens (including 'gd' which corresponds to Korean 'ㅎㅇ' in QWERTY layout)
         private static readonly HashSet<string> GreetingTokens = new()
         {
-            "hello", "hi", "hey", "greetings", "good morning", "good afternoon", "안녕", "안녕하세요", "반가워", "ㅎㅇ"
+            "hello", "hi", "hey", "greetings", "good morning", "good afternoon", 
+            "안녕", "안녕하세요", "반가워", "ㅎㅇ", "gd"
         };
 
         public PipelineService(LawMcpService mcpService, AgyCliService agyService)
@@ -28,8 +36,6 @@ namespace LawDesktop.Services
         /// <summary>
         /// Executes the 3-stage RAG Pipeline (Intro -> Middle -> Outro) in English
         /// </summary>
-        /// <param name="question">User query text</param>
-        /// <param name="progressCallback">Callback for updating progress (statusMessage, done)</param>
         public async Task<ChatMessage> RunPipelineAsync(string question, Action<string, bool> progressCallback)
         {
             var message = new ChatMessage
@@ -38,15 +44,29 @@ namespace LawDesktop.Services
                 Timestamp = DateTime.Now
             };
 
+            var normalizedQuestion = question.Trim().ToLower();
+
             // Stage 1: Intent Analysis (Intro)
             progressCallback("Analyzing query intent...", false);
-            var isGreeting = CheckIfGreeting(question);
+            var isGreeting = CheckIfGreeting(normalizedQuestion);
+            
+            // Short ambiguous query fallback (less than 4 characters and doesn't contain legal keywords)
+            var isTooShort = normalizedQuestion.Length <= 3 && 
+                             !SearchHints.Any(hint => normalizedQuestion.Contains(hint));
 
-            if (isGreeting)
+            if (isGreeting || isTooShort)
             {
                 progressCallback("Completed", true);
-                message.Content = "Hello! How can I help you today? Please feel free to ask any legal issues or disputes, and I will search relevant laws and precedents to guide you.";
-                message.GuardSummary = "Greeting detected (Skip Search)";
+                if (isGreeting)
+                {
+                    message.Content = "Hello! How can I help you today? Please feel free to ask any legal issues or disputes, and I will search relevant laws and precedents to guide you.";
+                    message.GuardSummary = "Greeting detected (Skip Search)";
+                }
+                else
+                {
+                    message.Content = "The query is too short or ambiguous. Please provide a more detailed description of your legal inquiry or dispute so I can retrieve correct information.";
+                    message.GuardSummary = "Short query (Skip Search)";
+                }
                 return message;
             }
 
@@ -66,7 +86,7 @@ namespace LawDesktop.Services
             if (string.IsNullOrEmpty(draftAnswer))
             {
                 progressCallback("Generation failed", true);
-                message.Content = "I'm sorry, I could not generate an answer. The local agy cli response was empty or returned an error.";
+                message.Content = "I'm sorry, I could not generate an answer. The local agy cli response was empty or returned an error. Please make sure agy cli is logged in and authorized.";
                 return message;
             }
 
@@ -77,13 +97,10 @@ namespace LawDesktop.Services
             progressCallback("Completed", true);
 
             message.Content = verifyResult.AnnotatedAnswer;
-            
-            // Translate status summary to English
             message.GuardSummary = TranslateVerifySummary(verifyResult.Summary);
             message.IsHallucinated = verifyResult.Hallucination;
             message.IsPartialVerified = verifyResult.Partial;
             
-            // Extract structured citations for UI split pane
             message.Citations = _mcpService.ExtractStructuredCitations(verifyResult.AnnotatedAnswer);
 
             // Load full-text content in background
@@ -95,7 +112,7 @@ namespace LawDesktop.Services
         private bool CheckIfGreeting(string question)
         {
             var cleaned = Regex.Replace(question.ToLower().Replace(" ", ""), @"[^\w\s]", "");
-            return GreetingTokens.Any(token => cleaned.Contains(token));
+            return GreetingTokens.Contains(cleaned) || GreetingTokens.Any(token => cleaned.Contains(token));
         }
 
         /// <summary>
@@ -104,7 +121,7 @@ namespace LawDesktop.Services
         private async Task<List<string>> ExtractSearchKeywordsAsync(string question)
         {
             var prompt = $"User Query: \"{question}\"\n\n" +
-                         "Based on this query, extract 1 to 3 core Korean legal terms (e.g. 임차권등기명령, 주택임대차보호법, 부당해고) to query in the Korean database. Respond ONLY with the terms separated by commas. Do not include any explanations, markdown block, or other texts.";
+                         "Based on this query, extract 1 to 2 core Korean legal terms (e.g. 임차권등기명령, 부당해고) to query in the Korean database. Respond ONLY with the terms separated by commas. Do not include any explanations, markdown, or other texts.";
 
             var res = await _agyService.ExecutePromptAsync(prompt);
             if (!res.Ok || string.IsNullOrEmpty(res.Text))
@@ -130,7 +147,8 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Retrieve matching laws and decisions for the extracted keywords
+        /// Retrieve matching laws and decisions for the extracted keywords.
+        /// Limits text lengths to avoid Windows argument length restrictions when calling CLI.
         /// </summary>
         private async Task<string> CollectSearchContextAsync(List<string> keywords, Action<string, bool> progressCallback)
         {
@@ -143,7 +161,9 @@ namespace LawDesktop.Services
                 if (lawRes.Ok && !string.IsNullOrEmpty(lawRes.Text))
                 {
                     contextBuilder.AppendLine($"=== Law Search Result (Keyword: {keyword}) ===");
-                    contextBuilder.AppendLine(lawRes.Text);
+                    // Truncate to 1000 characters to keep prompt size small
+                    var truncatedLaw = lawRes.Text.Length > 1000 ? lawRes.Text.Substring(0, 1000) + "..." : lawRes.Text;
+                    contextBuilder.AppendLine(truncatedLaw);
                     contextBuilder.AppendLine();
                 }
 
@@ -152,7 +172,9 @@ namespace LawDesktop.Services
                 if (decRes.Ok && !string.IsNullOrEmpty(decRes.Text))
                 {
                     contextBuilder.AppendLine($"=== Precedent Search Result (Keyword: {keyword}) ===");
-                    contextBuilder.AppendLine(decRes.Text);
+                    // Truncate to 1000 characters to keep prompt size small
+                    var truncatedDec = decRes.Text.Length > 1000 ? decRes.Text.Substring(0, 1000) + "..." : decRes.Text;
+                    contextBuilder.AppendLine(truncatedDec);
                     contextBuilder.AppendLine();
                 }
             }
@@ -165,19 +187,25 @@ namespace LawDesktop.Services
         /// </summary>
         private async Task<string> GenerateDraftAnswerAsync(string question, string context)
         {
-            var systemPrompt = "You are a professional legal advisor and AI assistant. Based ONLY on the facts and laws provided in the [Laws and Precedents Context] below, answer the user's question logically and guide them.\n\n" +
+            var systemPrompt = "You are a professional legal advisor. Based ONLY on the provided context, answer the user's question logically.\n" +
                                "=== KEY RULES ===\n" +
-                               "1. STRICT CITE MARKUPS: You MUST cite precedents or laws using ONLY the following markup formats: [법령: LawName ArticleNo] or [판례: CaseNumber] in Korean. For example, [법령: 민법 제750조], [판례: 대법원 2020도1234]. Do not translate the text inside the brackets; they must be written in Korean so that the system parser and verification tool can query them.\n" +
-                               "2. NO HALLUCINATIONS: Do not invent fake case numbers or law articles. If the context does not contain relevant information, state clearly: \"Based on the retrieved database, no matching precedents or laws were found to support this case.\"\n" +
-                               "3. LANGUAGE: Write the entire answer in English. Translate and explain the Korean legal principles into English naturally.\n" +
-                               "4. FORMAT: Use a polite tone and organize your answer in a clean markdown list format.";
+                               "1. STRICT CITE MARKUPS: You MUST cite precedents or laws using ONLY: [법령: LawName ArticleNo] or [판례: CaseNumber] in Korean. For example, [법령: 민법 제750조], [판례: 대법원 2020도1234]. Do not translate inside brackets; they must be written in Korean so the parser can check them.\n" +
+                               "2. NO HALLUCINATIONS: Do not invent fake case numbers or law articles. If not found, say \"No matching precedents or laws were found.\"\n" +
+                               "3. LANGUAGE: Write answer in English.\n" +
+                               "4. FORMAT: Polite tone, markdown list format.";
 
             var fullPrompt = $"{systemPrompt}\n" +
-                             $"[Laws and Precedents Context]\n" +
+                             $"[Context]\n" +
                              $"{context}\n\n" +
                              $"[User Question]\n" +
                              $"{question}\n\n" +
                              "Answer:";
+
+            // Enforce size limit to prevent command-line limit issues
+            if (fullPrompt.Length > 6000)
+            {
+                fullPrompt = fullPrompt.Substring(0, 6000) + "\n...[Context truncated due to size limit]";
+            }
 
             var result = await _agyService.ExecutePromptAsync(fullPrompt);
             return result.Ok ? (result.Text ?? string.Empty) : string.Empty;
@@ -187,13 +215,11 @@ namespace LawDesktop.Services
         {
             if (string.IsNullOrEmpty(summary)) return "No citations verified.";
             
-            // translate simple outcomes
             if (summary.Contains("환각 검출됨") || summary.Contains("환각")) return "Warning: Hallucination detected in citations.";
             if (summary.Contains("부분 검증됨") || summary.Contains("부분")) return "Warning: Partially verified citations.";
             if (summary.Contains("검증 완료")) return "Citations verified successfully.";
             if (summary.Contains("실존") || summary.Contains("✗") || summary.Contains("✓"))
             {
-                // Translate: "총 3건 | ✓ 2 실존 | ✗ 1 오류" -> "Total: 3 | ✓ 2 Real | ✗ 1 Invalid"
                 var result = summary
                     .Replace("총", "Total:")
                     .Replace("건", "")

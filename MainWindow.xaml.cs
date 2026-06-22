@@ -52,12 +52,14 @@ namespace LawDesktop
             }
             else
             {
-                DiagnosticsText.Text = "● agy cli Disconnected (Check PATH)";
+                DiagnosticsText.Text = "● agy cli Disconnected (Check PATH/Session)";
                 DiagnosticsText.Foreground = System.Windows.Media.Brushes.Red;
                 StatusText.Text = "Warning: Local agy cli is not reachable. Check environment variables.";
                 MessageBox.Show(
-                    "The 'agy' CLI could not be found or executed in your system PATH.\n" +
-                    "Please ensure Google Antigravity CLI is installed and configured, then restart this application.",
+                    "The 'agy' CLI could not be found, executed, or authenticated in your system PATH.\n\n" +
+                    "1. Please ensure Google Antigravity CLI is installed and configured in system environment variable PATH.\n" +
+                    "2. Open a standard terminal (CMD/PowerShell) and run 'agy' once to complete Google OAuth authentication.\n" +
+                    "3. Once authentication succeeds, restart this application.",
                     "agy cli Diagnostics Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }

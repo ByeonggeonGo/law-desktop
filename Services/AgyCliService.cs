@@ -50,17 +50,23 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Execute prompt on local agy cli non-interactively using the CLI's default model configuration
+        /// Execute prompt on local agy cli non-interactively using the CLI's default model configuration.
+        /// Escapes quotes and replaces newlines to prevent Windows argument limit/parsing crashes.
         /// </summary>
         public async Task<AgyResult> ExecutePromptAsync(string prompt, string? workDir = null)
         {
             try
             {
+                // Escape double quotes and replace newlines with a delimiter to ensure it runs as a single-line argument on Windows
+                string escapedPrompt = prompt
+                    .Replace("\"", "\\\"")
+                    .Replace("\r", "")
+                    .Replace("\n", " | ");
+
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "agy",
-                    // Removed --model flag to use local agy CLI's default configured model
-                    Arguments = $"--dangerously-skip-permissions --print \"{prompt.Replace("\"", "\\\"")}\"",
+                    Arguments = $"--dangerously-skip-permissions --print \"{escapedPrompt}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
