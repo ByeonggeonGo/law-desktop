@@ -70,7 +70,7 @@ namespace LawDesktop.Services
                 return message;
             }
 
-            // Stage 2: Search Keywords Extraction (Using local agy CLI)
+            // Stage 2: Search Keywords Extraction (Using local AI CLI)
             progressCallback("Extracting search keywords using AI...", false);
             var keywords = await ExtractSearchKeywordsAsync(question);
             progressCallback($"Keywords extracted: {string.Join(", ", keywords)}", false);
@@ -79,14 +79,20 @@ namespace LawDesktop.Services
             progressCallback("Collecting relevant laws and precedents from MCP...", false);
             var searchContext = await CollectSearchContextAsync(keywords, progressCallback);
 
-            // Stage 4: Generate Draft Answer (Using local agy CLI)
+            // Stage 4: Generate Draft Answer (Using local AI CLI)
             progressCallback("Generating grounded answer based on facts...", false);
-            var draftAnswer = await GenerateDraftAnswerAsync(question, searchContext);
+            var draftResult = await GenerateDraftAnswerAsync(question, searchContext);
+            var draftAnswer = draftResult.Ok ? (draftResult.Text ?? string.Empty) : string.Empty;
 
             if (string.IsNullOrEmpty(draftAnswer))
             {
                 progressCallback("Generation failed", true);
-                message.Content = "I'm sorry, I could not generate an answer. The local agy cli response was empty or returned an error. Please make sure agy cli is logged in and authorized.";
+                var cliName = string.IsNullOrWhiteSpace(draftResult.CliName) ? "local AI" : draftResult.CliName;
+                var detail = !string.IsNullOrWhiteSpace(draftResult.Error)
+                    ? draftResult.Error
+                    : "The CLI returned an empty response.";
+                message.Content = $"I could not generate an answer because the {cliName} CLI failed.\n\n{detail}";
+                message.GuardSummary = "Generation failed before citation verification";
                 return message;
             }
 
@@ -116,7 +122,7 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Ask local agy cli to extract Korean search keywords from user query
+        /// Ask local AI cli to extract Korean search keywords from user query
         /// </summary>
         private async Task<List<string>> ExtractSearchKeywordsAsync(string question)
         {
@@ -183,9 +189,9 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Call agy cli to synthesize the final answer in English
+        /// Call local AI cli to synthesize the final answer in English
         /// </summary>
-        private async Task<string> GenerateDraftAnswerAsync(string question, string context)
+        private async Task<AgyResult> GenerateDraftAnswerAsync(string question, string context)
         {
             var systemPrompt = "You are a professional legal advisor. Based ONLY on the provided context, answer the user's question logically.\n" +
                                "=== KEY RULES ===\n" +
@@ -208,7 +214,7 @@ namespace LawDesktop.Services
             }
 
             var result = await _agyService.ExecutePromptAsync(fullPrompt);
-            return result.Ok ? (result.Text ?? string.Empty) : string.Empty;
+            return result;
         }
 
         private string TranslateVerifySummary(string summary)

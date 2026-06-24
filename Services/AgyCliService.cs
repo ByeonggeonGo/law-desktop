@@ -33,7 +33,7 @@ namespace LawDesktop.Services
             {
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = fileName,
+                    FileName = AiCliCommandBuilder.GetPlatformCommandName(fileName),
                     Arguments = "--help",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -146,6 +146,7 @@ namespace LawDesktop.Services
                 {
                     return new AgyResult { Ok = false, CliName = displayName, Error = $"Failed to start {displayName} cli process." };
                 }
+                process.StandardInput.Close();
 
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();

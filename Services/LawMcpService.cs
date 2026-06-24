@@ -26,6 +26,13 @@ namespace LawDesktop.Services
             if (!string.IsNullOrEmpty(mcpUrl)) _mcpUrl = mcpUrl;
         }
 
+        public LawMcpService(HttpClient httpClient, string? ocKey = null, string? mcpUrl = null)
+        {
+            _httpClient = httpClient;
+            if (!string.IsNullOrEmpty(ocKey)) _ocKey = ocKey;
+            if (!string.IsNullOrEmpty(mcpUrl)) _mcpUrl = mcpUrl;
+        }
+
         public void UpdateConfig(string ocKey, string mcpUrl)
         {
             if (!string.IsNullOrEmpty(ocKey)) _ocKey = ocKey;
@@ -55,10 +62,15 @@ namespace LawDesktop.Services
                 };
 
                 var jsonStr = JsonSerializer.Serialize(requestPayload);
+                using var request = new HttpRequestMessage(HttpMethod.Post, GetEndpoint());
                 var content = new StringContent(jsonStr, Encoding.UTF8, "application/json");
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                request.Content = content;
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
-                var response = await _httpClient.PostAsync(GetEndpoint(), content);
+                var response = await _httpClient.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
                     return new McpCallResult

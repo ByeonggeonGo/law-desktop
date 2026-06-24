@@ -1,4 +1,5 @@
 using LawDesktop.Services;
+using System.Runtime.InteropServices;
 
 namespace LawDesktop.Tests;
 
@@ -13,7 +14,7 @@ public class AiCliCommandBuilderTests
             workDir: @"C:\repo",
             threadId: "thread-123");
 
-        Assert.Equal("codex", command.FileName);
+        Assert.Equal(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "codex.cmd" : "codex", command.FileName);
         Assert.Contains("--json", command.Arguments);
         Assert.Contains("--output-last-message", command.Arguments);
 
@@ -32,8 +33,20 @@ public class AiCliCommandBuilderTests
 
         var command = AiCliCommandBuilder.BuildAgyPrint(prompt);
 
-        Assert.Equal("agy", command.FileName);
+        Assert.Equal(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "agy.exe" : "agy", command.FileName);
         Assert.Contains("--print", command.Arguments);
         Assert.Equal(prompt, command.Arguments[^1]);
+    }
+
+    [Fact]
+    public void StartInfoClosesStandardInputSoCodexDoesNotWaitForPipedInput()
+    {
+        var command = AiCliCommandBuilder.BuildCodexExec(
+            prompt: "OK",
+            outputPath: @"C:\temp\last-message.txt");
+
+        var startInfo = command.ToStartInfo();
+
+        Assert.True(startInfo.RedirectStandardInput);
     }
 }

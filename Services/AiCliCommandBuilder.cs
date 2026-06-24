@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace LawDesktop.Services
@@ -18,6 +19,7 @@ namespace LawDesktop.Services
                 FileName = FileName,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                RedirectStandardInput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 StandardOutputEncoding = Encoding.UTF8,
@@ -71,7 +73,7 @@ namespace LawDesktop.Services
 
             return new AiCliCommand
             {
-                FileName = "codex",
+                FileName = GetPlatformCommandName("codex"),
                 Arguments = args,
                 WorkingDirectory = workDir
             };
@@ -81,7 +83,7 @@ namespace LawDesktop.Services
         {
             return new AiCliCommand
             {
-                FileName = "agy",
+                FileName = GetPlatformCommandName("agy"),
                 Arguments = new List<string>
                 {
                     "--dangerously-skip-permissions",
@@ -90,6 +92,12 @@ namespace LawDesktop.Services
                 },
                 WorkingDirectory = workDir
             };
+        }
+
+        public static string GetPlatformCommandName(string command)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return command;
+            return command == "codex" ? "codex.cmd" : $"{command}.exe";
         }
     }
 }
