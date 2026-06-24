@@ -33,7 +33,7 @@ namespace LawDesktop.Services
             {
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = AiCliCommandBuilder.GetPlatformCommandName(fileName),
+                    FileName = AiCliCommandBuilder.ResolveCommandName(fileName),
                     Arguments = "--help",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

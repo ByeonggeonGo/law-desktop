@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -73,7 +74,7 @@ namespace LawDesktop.Services
 
             return new AiCliCommand
             {
-                FileName = GetPlatformCommandName("codex"),
+                FileName = ResolveCommandName("codex"),
                 Arguments = args,
                 WorkingDirectory = workDir
             };
@@ -83,7 +84,7 @@ namespace LawDesktop.Services
         {
             return new AiCliCommand
             {
-                FileName = GetPlatformCommandName("agy"),
+                FileName = ResolveCommandName("agy"),
                 Arguments = new List<string>
                 {
                     "--dangerously-skip-permissions",
@@ -98,6 +99,50 @@ namespace LawDesktop.Services
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return command;
             return command == "codex" ? "codex.cmd" : $"{command}.exe";
+        }
+
+        public static string ResolveCommandName(string command)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return command;
+
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            foreach (var candidate in GetWindowsCommandCandidates(command, appData, localAppData))
+            {
+                if (Path.IsPathRooted(candidate) && File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return GetPlatformCommandName(command);
+        }
+
+        public static List<string> GetWindowsCommandCandidates(string command, string appData, string localAppData)
+        {
+            var candidates = new List<string>();
+            if (command == "codex")
+            {
+                if (!string.IsNullOrWhiteSpace(appData))
+                {
+                    candidates.Add(Path.Combine(appData, "npm", "codex.cmd"));
+                }
+                candidates.Add("codex.cmd");
+                return candidates;
+            }
+
+            if (command == "agy")
+            {
+                if (!string.IsNullOrWhiteSpace(localAppData))
+                {
+                    candidates.Add(Path.Combine(localAppData, "agy", "bin", "agy.exe"));
+                }
+                candidates.Add("agy.exe");
+                return candidates;
+            }
+
+            candidates.Add(GetPlatformCommandName(command));
+            return candidates;
         }
     }
 }

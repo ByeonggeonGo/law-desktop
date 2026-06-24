@@ -14,7 +14,7 @@ public class AiCliCommandBuilderTests
             workDir: @"C:\repo",
             threadId: "thread-123");
 
-        Assert.Equal(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "codex.cmd" : "codex", command.FileName);
+        Assert.EndsWith(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "codex.cmd" : "codex", command.FileName);
         Assert.Contains("--json", command.Arguments);
         Assert.Contains("--output-last-message", command.Arguments);
 
@@ -33,7 +33,7 @@ public class AiCliCommandBuilderTests
 
         var command = AiCliCommandBuilder.BuildAgyPrint(prompt);
 
-        Assert.Equal(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "agy.exe" : "agy", command.FileName);
+        Assert.EndsWith(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "agy.exe" : "agy", command.FileName);
         Assert.Contains("--print", command.Arguments);
         Assert.Equal(prompt, command.Arguments[^1]);
     }
@@ -48,5 +48,17 @@ public class AiCliCommandBuilderTests
         var startInfo = command.ToStartInfo();
 
         Assert.True(startInfo.RedirectStandardInput);
+    }
+
+    [Fact]
+    public void WindowsCommandCandidatesIncludeUserInstallLocationsBeforePathLookup()
+    {
+        var candidates = AiCliCommandBuilder.GetWindowsCommandCandidates(
+            "codex",
+            @"C:\Users\me\AppData\Roaming",
+            @"C:\Users\me\AppData\Local");
+
+        Assert.Equal(@"C:\Users\me\AppData\Roaming\npm\codex.cmd", candidates[0]);
+        Assert.Contains("codex.cmd", candidates);
     }
 }
