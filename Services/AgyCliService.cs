@@ -13,15 +13,27 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Check if agy cli is installed and operational on the host system
+        /// Check if either codex or agy cli is installed and operational on the host system.
         /// </summary>
         public async Task<bool> CheckAgyCliInstalledAsync()
+        {
+            return await CheckCliInstalledAsync("codex") || await CheckCliInstalledAsync("agy");
+        }
+
+        public async Task<string> GetAvailableCliNameAsync()
+        {
+            if (await CheckCliInstalledAsync("codex")) return "codex";
+            if (await CheckCliInstalledAsync("agy")) return "agy";
+            return string.Empty;
+        }
+
+        private async Task<bool> CheckCliInstalledAsync(string fileName)
         {
             try
             {
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "agy",
+                    FileName = fileName,
                     Arguments = "--help",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -50,74 +62,104 @@ namespace LawDesktop.Services
         }
 
         /// <summary>
-        /// Execute prompt on local agy cli non-interactively using the CLI's default model configuration.
-        /// Escapes quotes and replaces newlines to prevent Windows argument limit/parsing crashes.
+        /// Execute prompt on local codex cli first, falling back to agy cli when codex is unavailable.
         /// </summary>
-        public async Task<AgyResult> ExecutePromptAsync(string prompt, string? workDir = null)
+        public async Task<AgyResult> ExecutePromptAsync(string prompt, string? workDir = null, string? codexThreadId = null)
+        {
+            var codexAvailable = await CheckCliInstalledAsync("codex");
+            if (codexAvailable)
+            {
+                var codexResult = await ExecuteCodexAsync(prompt, workDir, codexThreadId);
+                if (codexResult.Ok) return codexResult;
+            }
+
+            return await ExecuteAgyAsync(prompt, workDir);
+        }
+
+        private async Task<AgyResult> ExecuteCodexAsync(string prompt, string? workDir, string? threadId)
+        {
+            var outputPath = Path.Combine(Path.GetTempPath(), $"law-desktop-codex-{Guid.NewGuid():N}.txt");
+            var command = AiCliCommandBuilder.BuildCodexExec(prompt, outputPath, NormalizeWorkDir(workDir), threadId);
+            var result = await ExecuteCommandAsync(command, "codex", 180);
+
+            try
+            {
+                if (File.Exists(outputPath))
+                {
+                    var lastMessage = await File.ReadAllTextAsync(outputPath, Encoding.UTF8);
+                    if (!string.IsNullOrWhiteSpace(lastMessage))
+                    {
+                        result.Text = lastMessage.Trim();
+                        result.Ok = true;
+                    }
+                }
+
+                var events = CodexJsonlParser.Parse(result.RawStdout ?? string.Empty);
+                result.CliName = "codex";
+                result.ThreadId = events.ThreadId;
+                result.ToolCalls = events.ToolCalls;
+                if (string.IsNullOrWhiteSpace(result.Text) && !string.IsNullOrWhiteSpace(events.FinalText))
+                {
+                    result.Text = events.FinalText.Trim();
+                    result.Ok = true;
+                }
+            }
+            finally
+            {
+                TryDelete(outputPath);
+            }
+
+            return result;
+        }
+
+        private async Task<AgyResult> ExecuteAgyAsync(string prompt, string? workDir)
+        {
+            var command = AiCliCommandBuilder.BuildAgyPrint(prompt, NormalizeWorkDir(workDir));
+            var result = await ExecuteCommandAsync(command, "agy", 100);
+            result.CliName = "agy";
+            if (result.Ok)
+            {
+                result.Text = (result.RawStdout ?? string.Empty).Trim();
+            }
+
+            return result;
+        }
+
+        private async Task<AgyResult> ExecuteCommandAsync(AiCliCommand command, string displayName, int timeoutSec)
         {
             try
             {
-                // Escape double quotes and replace newlines with a delimiter to ensure it runs as a single-line argument on Windows
-                string escapedPrompt = prompt
-                    .Replace("\"", "\\\"")
-                    .Replace("\r", "")
-                    .Replace("\n", " | ");
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "agy",
-                    Arguments = $"--dangerously-skip-permissions --print \"{escapedPrompt}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
-                };
-
-                if (!string.IsNullOrEmpty(workDir) && Directory.Exists(workDir))
-                {
-                    startInfo.WorkingDirectory = workDir;
-                }
-
-                using var process = new Process { StartInfo = startInfo };
-                
+                using var process = new Process { StartInfo = command.ToStartInfo() };
                 var outputBuilder = new StringBuilder();
                 var errorBuilder = new StringBuilder();
 
-                process.OutputDataReceived += (sender, args) =>
+                process.OutputDataReceived += (_, args) =>
                 {
-                    if (args.Data != null)
-                    {
-                        outputBuilder.AppendLine(args.Data);
-                    }
+                    if (args.Data != null) outputBuilder.AppendLine(args.Data);
                 };
-
-                process.ErrorDataReceived += (sender, args) =>
+                process.ErrorDataReceived += (_, args) =>
                 {
-                    if (args.Data != null)
-                    {
-                        errorBuilder.AppendLine(args.Data);
-                    }
+                    if (args.Data != null) errorBuilder.AppendLine(args.Data);
                 };
 
                 if (!process.Start())
                 {
-                    return new AgyResult { Ok = false, Error = "Failed to start agy cli process." };
+                    return new AgyResult { Ok = false, CliName = displayName, Error = $"Failed to start {displayName} cli process." };
                 }
 
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                var timeoutSec = 100;
-                var waitTask = Task.Run(() => process.WaitForExit());
+                var waitTask = process.WaitForExitAsync();
                 var timeoutTask = Task.Delay(TimeSpan.FromSeconds(timeoutSec));
-
                 if (await Task.WhenAny(waitTask, timeoutTask) == timeoutTask)
                 {
-                    process.Kill();
-                    return new AgyResult { Ok = false, Error = $"agy cli execution timed out ({timeoutSec} seconds)" };
+                    TryKill(process);
+                    return new AgyResult { Ok = false, CliName = displayName, Error = $"{displayName} cli execution timed out ({timeoutSec} seconds)" };
                 }
+
+                await waitTask;
+                process.WaitForExit();
 
                 if (process.ExitCode != 0)
                 {
@@ -125,15 +167,19 @@ namespace LawDesktop.Services
                     return new AgyResult
                     {
                         Ok = false,
-                        Error = $"agy cli terminated with error code {process.ExitCode}.\nDetails: {errText}",
-                        Text = outputBuilder.ToString()
+                        CliName = displayName,
+                        Error = $"{displayName} cli terminated with error code {process.ExitCode}.\nDetails: {errText}",
+                        RawStdout = outputBuilder.ToString(),
+                        RawStderr = errorBuilder.ToString()
                     };
                 }
 
                 return new AgyResult
                 {
                     Ok = true,
-                    Text = outputBuilder.ToString().Trim()
+                    CliName = displayName,
+                    RawStdout = outputBuilder.ToString(),
+                    RawStderr = errorBuilder.ToString()
                 };
             }
             catch (Exception ex)
@@ -141,8 +187,36 @@ namespace LawDesktop.Services
                 return new AgyResult
                 {
                     Ok = false,
-                    Error = $"Exception occurred while executing agy cli: {ex.Message}"
+                    CliName = displayName,
+                    Error = $"Exception occurred while executing {displayName} cli: {ex.Message}"
                 };
+            }
+        }
+
+        private static string? NormalizeWorkDir(string? workDir)
+        {
+            return !string.IsNullOrWhiteSpace(workDir) && Directory.Exists(workDir) ? workDir : null;
+        }
+
+        private static void TryKill(Process process)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+            }
+        }
+
+        private static void TryDelete(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch
+            {
             }
         }
     }
@@ -152,5 +226,10 @@ namespace LawDesktop.Services
         public bool Ok { get; set; }
         public string? Text { get; set; }
         public string? Error { get; set; }
+        public string? CliName { get; set; }
+        public string? ThreadId { get; set; }
+        public string? RawStdout { get; set; }
+        public string? RawStderr { get; set; }
+        public System.Collections.Generic.List<CodexToolCall> ToolCalls { get; set; } = new();
     }
 }

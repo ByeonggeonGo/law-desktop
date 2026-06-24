@@ -8,4 +8,9 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="LawDesktop.Tests\**\*.cs" />
+    <None Remove="LawDesktop.Tests\**\*" />
+  </ItemGroup>
+
 </Project>

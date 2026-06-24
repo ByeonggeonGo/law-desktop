@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LawDesktop"
         mc:Ignorable="d"
-        Title="AI Local Law Assistant (Agy CLI + Law MCP)" 
+        Title="AI Local Law Assistant (Codex/Agy CLI + Law MCP)"
         Height="768" Width="1280"
         Background="#0F172A"
         WindowStartupLocation="CenterScreen">
@@ -41,7 +41,7 @@
                 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="⚖️ Local Law Assistant" Foreground="#F8FAFC" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
-                    <TextBlock Text="with Antigravity CLI &amp; Korea Law MCP" Foreground="#94A3B8" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="with Codex/Agy CLI &amp; Korea Law MCP" Foreground="#94A3B8" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Settings & Configuration Form -->
@@ -49,7 +49,7 @@
                     <TextBlock Text="OC Key:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
                     <TextBox x:Name="OcTextBox" Width="120" Height="28" VerticalContentAlignment="Center" Background="#0F172A" Foreground="#F1F5F9" BorderBrush="#475569" Padding="5,0" Margin="0,0,15,0"/>
                     
-                    <TextBlock Text="Engine: Antigravity CLI (Default Model)" Foreground="#38BDF8" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,15,0"/>
+                    <TextBlock Text="Engine: Codex first, Agy fallback" Foreground="#38BDF8" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,15,0"/>
                     
                     <Button Content="Apply" Width="60" Height="28" Click="ApplySettings_Click" Background="#38BDF8" Foreground="#0F172A" FontWeight="Bold" BorderThickness="0" Cursor="Hand">
                         <Button.Resources>
@@ -212,7 +212,7 @@
                 </StackPanel>
                 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="DiagnosticsText" Text="Diagnosing agy cli status..." Foreground="#F59E0B" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="DiagnosticsText" Text="Diagnosing local AI cli status..." Foreground="#F59E0B" FontSize="11" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>

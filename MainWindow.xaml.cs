@@ -39,28 +39,28 @@ namespace LawDesktop
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            StatusText.Text = "Checking local agy cli connection status...";
+            StatusText.Text = "Checking local AI cli connection status...";
             DiagnosticsText.Text = "Checking connection...";
             DiagnosticsText.Foreground = System.Windows.Media.Brushes.Yellow;
 
-            bool isInstalled = await _agyService.CheckAgyCliInstalledAsync();
-            if (isInstalled)
+            var cliName = await _agyService.GetAvailableCliNameAsync();
+            if (!string.IsNullOrEmpty(cliName))
             {
-                DiagnosticsText.Text = "● agy cli Connected";
+                DiagnosticsText.Text = $"● {cliName} cli Connected";
                 DiagnosticsText.Foreground = System.Windows.Media.Brushes.Green;
                 StatusText.Text = "Ready. Please enter your legal inquiry.";
             }
             else
             {
-                DiagnosticsText.Text = "● agy cli Disconnected (Check PATH/Session)";
+                DiagnosticsText.Text = "● Codex/Agy cli Disconnected (Check PATH/Session)";
                 DiagnosticsText.Foreground = System.Windows.Media.Brushes.Red;
-                StatusText.Text = "Warning: Local agy cli is not reachable. Check environment variables.";
+                StatusText.Text = "Warning: Local AI cli is not reachable. Check environment variables.";
                 MessageBox.Show(
-                    "The 'agy' CLI could not be found, executed, or authenticated in your system PATH.\n\n" +
-                    "1. Please ensure Google Antigravity CLI is installed and configured in system environment variable PATH.\n" +
-                    "2. Open a standard terminal (CMD/PowerShell) and run 'agy' once to complete Google OAuth authentication.\n" +
+                    "Neither the 'codex' nor 'agy' CLI could be found, executed, or authenticated in your system PATH.\n\n" +
+                    "1. Please ensure OpenAI Codex CLI or Google Antigravity CLI is installed and configured in PATH.\n" +
+                    "2. Open a standard terminal (CMD/PowerShell) and run the CLI once to complete authentication.\n" +
                     "3. Once authentication succeeds, restart this application.",
-                    "agy cli Diagnostics Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Local AI cli Diagnostics Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
